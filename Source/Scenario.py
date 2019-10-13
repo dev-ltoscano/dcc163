@@ -1,58 +1,15 @@
 # -*- coding: utf-8 -*-
+import xml.etree.ElementTree as et
+import DataStructures as ds
 
-"""
-@author: ltosc
-"""
-
-from enum import Enum
-import xml.etree.ElementTree as ET
-
-class ChannelState(Enum):
-    UNCLASSIFIED = 0
-    AVAILABLE = 1
-    PROTECTED = 2
-    RESTRICTED = 3
-    OPERATING = 4
-    COEXISTENT = 5
-
-class Channel:
-    def __init__(self, name, number, frequency, state):
-        self.name = name
-        self.channelNumber = number
-        self.frequency = frequency
-        self.state = state
-
-class CEClient:
-    def __init__(self, id, latitude, longitude, signal, interference):
-        self.id = id
-        self.latitude = latitude
-        self.longitude = longitude
-        self.signalLevel = signal
-        self.co_channel_interference = interference
-    
-class CE:
-    def __init__(self, id, antenna, channel, latitude, longitude, potency, maxPotency, clientList):
-        self.id = id
-        self.antenna = antenna
-        self.channel = channel
-        self.latitude = latitude
-        self.longitude = longitude
-        self.potency = potency
-        self.maxPotency = maxPotency
-        self.clientList = clientList
-    
-class CM:
-    def __init__(self, id, ceList):
-        self.id = id
-        self.ceList = ceList
-        
 class Scenario():
     def __init__(self):
         self.cm = None
         self.channels = None
+        self.cdisList = None
         
-    def read(self, cm_xml_path):
-        xmlTree = ET.parse(cm_xml_path)
+    def read(self, cm_xml_path, cdis_xml_path):
+        xmlTree = et.parse(cm_xml_path)
         xmlRoot = xmlTree.getroot()
         
         ceList = []
@@ -67,7 +24,7 @@ class Scenario():
                 signal = int(ceClientElement.find('nivelSinal').text)
                 interference = float(ceClientElement.find('interferenciaCocanal').text)
                 
-                ceClient = CEClient(id, latitude, longitude, signal, interference)
+                ceClient = ds.CEClient(id, latitude, longitude, signal, interference)
                 
                 ceClientList.append(ceClient)
             
@@ -79,12 +36,12 @@ class Scenario():
             potency = int(ceElement.find('potencia').text)
             maxPotency = int(ceElement.find('potenciaMax').text)
             
-            ce = CE(id, antenna, channel, latitude, longitude, potency, maxPotency, ceClientList)
+            ce = ds.CE(id, antenna, channel, latitude, longitude, potency, maxPotency, ceClientList)
             
             ceList.append(ce)
         
         id = xmlRoot.find('id').text  
-        self.cm = CM(id, ceList)
+        self.cm = ds.CM(id, ceList)
         
         channelList = []
         
@@ -92,52 +49,95 @@ class Scenario():
             name = channelElement.find('nome').text
             number = channelElement.find('numCanal').text
             frequency = channelElement.find('frequencia').text
-            state = ChannelState[channelElement.find('estado').text]
+            state = ds.ChannelState[channelElement.find('estado').text]
             
-            channel = (name, number, frequency, state)
-            
+            channel = ds.Channel(name, number, frequency, state)
             channelList.append(channel)
         
-        self.channels = channelList
+        self.channels = channelList 
         
+        xmlTree = et.parse(cdis_xml_path)
+        xmlRoot = xmlTree.getroot()
         
-scenario = Scenario()
-scenario.read("input_data/cenarios800/1.1/800_3_10_1_.xml")
+        cdisList = []
+        
+        for cdisElement in xmlRoot.findall('cdis'):
+            channelList = []
+            
+            for channelElement in cdisElement.findall('canaisTvdb'):
+                name = channelElement.find('nome').text
+                number = channelElement.find('numCanal').text
+                frequency = channelElement.find('frequencia').text
+                state = ds.ChannelState[channelElement.find('estado').text]
+                
+                channel = ds.Channel(name, number, frequency, state)                
+                channelList.append(channel)
+                
+                cdis = ds.CDIS(channelList)
+                cdisList.append(cdis)
+                
+        self.cdisList = cdisList
 
-for channel in scenario.channels:
-    print(channel[0])
-    print(channel[2])
-    print(channel[3])
-    print()
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
