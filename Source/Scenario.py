@@ -33,8 +33,8 @@ class Scenario():
             channel = int(ceElement.find('device').find('canal').text)
             latitude = float(ceElement.find('latitude').text)
             longitude = float(ceElement.find('longitude').text)
-            potency = int(ceElement.find('potencia').text)
-            maxPotency = int(ceElement.find('potenciaMax').text)
+            potency = float(ceElement.find('potencia').text)
+            maxPotency = float(ceElement.find('potenciaMax').text)
             
             ce = DataStructures.CE(id, antenna, channel, DataStructures.GeoPoint(latitude, longitude), potency, maxPotency, ceClientList)
             
