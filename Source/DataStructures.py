@@ -43,3 +43,8 @@ class CM:
 class CDIS:
     def __init__(self, channelList):
         self.channelList = channelList
+        
+class LPVar:
+    def __init__(self, name, description):
+        self.name = name
+        self.description = description

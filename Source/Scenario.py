@@ -47,8 +47,8 @@ class Scenario():
         
         for channelElement in xmlRoot.findall('channels'):
             name = channelElement.find('nome').text
-            number = channelElement.find('numCanal').text
-            frequency = channelElement.find('frequencia').text
+            number = int(channelElement.find('numCanal').text)
+            frequency = float(channelElement.find('frequencia').text)
             state = ds.ChannelState[channelElement.find('estado').text]
             
             channel = ds.Channel(name, number, frequency, state)
