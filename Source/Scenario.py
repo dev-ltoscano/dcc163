@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import xml.etree.ElementTree as et
-import DataStructures as ds
+import DataStructures
 
 class Scenario():
     def __init__(self):
@@ -24,24 +24,24 @@ class Scenario():
                 signal = int(ceClientElement.find('nivelSinal').text)
                 interference = float(ceClientElement.find('interferenciaCocanal').text)
                 
-                ceClient = ds.CEClient(id, latitude, longitude, signal, interference)
+                ceClient = DataStructures.CEClient(id, DataStructures.GeoPoint(latitude, longitude), signal, interference)
                 
                 ceClientList.append(ceClient)
             
             id = ceElement.find('id').text
-            antenna = ceElement.find('antena').text
+            antenna = int(ceElement.find('antena').text)
             channel = int(ceElement.find('device').find('canal').text)
             latitude = float(ceElement.find('latitude').text)
             longitude = float(ceElement.find('longitude').text)
             potency = int(ceElement.find('potencia').text)
             maxPotency = int(ceElement.find('potenciaMax').text)
             
-            ce = ds.CE(id, antenna, channel, latitude, longitude, potency, maxPotency, ceClientList)
+            ce = DataStructures.CE(id, antenna, channel, DataStructures.GeoPoint(latitude, longitude), potency, maxPotency, ceClientList)
             
             ceList.append(ce)
         
         id = xmlRoot.find('id').text  
-        self.cm = ds.CM(id, ceList)
+        self.cm = DataStructures.CM(id, ceList)
         
         channelList = []
         
@@ -49,9 +49,9 @@ class Scenario():
             name = channelElement.find('nome').text
             number = int(channelElement.find('numCanal').text)
             frequency = float(channelElement.find('frequencia').text)
-            state = ds.ChannelState[channelElement.find('estado').text]
+            state = DataStructures.ChannelState[channelElement.find('estado').text]
             
-            channel = ds.Channel(name, number, frequency, state)
+            channel = DataStructures.Channel(name, number, frequency, state)
             channelList.append(channel)
         
         self.channels = channelList 
@@ -68,76 +68,12 @@ class Scenario():
                 name = channelElement.find('nome').text
                 number = channelElement.find('numCanal').text
                 frequency = channelElement.find('frequencia').text
-                state = ds.ChannelState[channelElement.find('estado').text]
+                state = DataStructures.ChannelState[channelElement.find('estado').text]
                 
-                channel = ds.Channel(name, number, frequency, state)                
+                channel = DataStructures.Channel(name, number, frequency, state)                
                 channelList.append(channel)
                 
-                cdis = ds.CDIS(channelList)
+                cdis = DataStructures.CDIS(channelList)
                 cdisList.append(cdis)
                 
         self.cdisList = cdisList
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

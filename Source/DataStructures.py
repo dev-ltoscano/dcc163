@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
 
+class GeoPoint:
+    def __init__(self, latitude, longitude):
+        self.latitude = latitude
+        self.longitude = longitude
+
 class ChannelState(Enum):
     UNCLASSIFIED = 0
     AVAILABLE = 1
@@ -17,20 +22,18 @@ class Channel:
         self.state = state
 
 class CEClient:
-    def __init__(self, id, latitude, longitude, signal, interference):
+    def __init__(self, id, geoPoint, signal, interference):
         self.id = id
-        self.latitude = latitude
-        self.longitude = longitude
+        self.geoPoint = geoPoint
         self.signalLevel = signal
         self.co_channel_interference = interference
     
 class CE:
-    def __init__(self, id, antenna, channel, latitude, longitude, potency, maxPotency, clientList):
+    def __init__(self, id, antenna, channel, geoPoint, potency, maxPotency, clientList):
         self.id = id
         self.antenna = antenna
         self.channel = channel
-        self.latitude = latitude
-        self.longitude = longitude
+        self.geoPoint = geoPoint
         self.potency = potency
         self.maxPotency = maxPotency
         self.clientList = clientList
