@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
+import math
+
 import MiscUtil
 import MathUtil
 import DataStructures
 
 def createAllCEVars(scenario):
-    ceVarList = []
+    allCEVarList = []
     
     ceLength = len(scenario.cm.ceList)
-    ceIdList = range(0, ceLength)
-    channelList = MiscUtil.range_i(1, 13)
+    ceIdList = MiscUtil.range_exclusive(0, ceLength)
+    channelList = MiscUtil.range_inclusive(1, 13)
     
     for ceId in ceIdList:
         strCEId = str(ceId)
@@ -16,7 +18,7 @@ def createAllCEVars(scenario):
         for channel in channelList:
             strChannel = str(channel)
             
-            potencyList = MiscUtil.range_i(1, int(scenario.cm.ceList[ceId].maxPotency), 1)
+            potencyList = MiscUtil.range_inclusive(1, int(scenario.cm.ceList[ceId].maxPotency), 1)
             
             for potency in potencyList:
                 strPotency = str(potency)
@@ -25,22 +27,22 @@ def createAllCEVars(scenario):
                 varDescription = "CE com id=" + strCEId + " usando canal=" + strChannel + " com potência=" + strPotency
         
                 ceVar = DataStructures.LPVar(varName, varDescription)
-                ceVarList.append(ceVar)
+                allCEVarList.append(ceVar)
         
-    return ceVarList
+    return allCEVarList
 
 def removeVarsWithUnavailableChannel(scenario, allCEVarList):
     newCEVarList = []
     
+    availableChannelNumberList = [c.channelNumber for c in scenario.channels if ((c.state == DataStructures.ChannelState.AVAILABLE) 
+                                                                                or (c.state == DataStructures.ChannelState.OPERATING) 
+                                                                                or (c.state == DataStructures.ChannelState.COEXISTENT))]
+    
     for ceVar in allCEVarList:
         ceVarNameSplit = ceVar.name.split('_')
-        ceChannel = int(ceVarNameSplit[2])
+        ceChannelNumber = int(ceVarNameSplit[2])
         
-        channel = next(c for c in scenario.channels if (c.channelNumber == ceChannel))
-        
-        if ((channel.state == DataStructures.ChannelState.AVAILABLE) 
-            or (channel.state == DataStructures.ChannelState.OPERATING) 
-            or (channel.state == DataStructures.ChannelState.COEXISTENT)):
+        if (ceChannelNumber in availableChannelNumberList):
             newCEVarList.append(ceVar)
 
     return newCEVarList
@@ -68,83 +70,112 @@ def removeVarWithLowPotency(scenario, allCEVarList):
         ceId = int(ceVarNameSplit[1])
         cePotency = float(ceVarNameSplit[3])
         
-        ce = scenario.cm.ceList[ceId]
-        channel = next(c for c in scenario.channels if (c.channelNumber == ce.channel))
+        ceAntenna = scenario.cm.ceList[ceId].antenna
+        channelFrequency = next(c.frequency for c in scenario.channels if (c.channelNumber == ce.channel))
         
-        ceSignalDistance = hataSRD.getDistance(ce.antenna, channel.frequency, cePotency, -68)
+        ceSignalDistance = hataSRD.getDistance(ceAntenna, channelFrequency, cePotency, -50)
         
         if(ceSignalDistance >= maxDistanceCEAndClients[ceId]):
             newCEVarList.append(ceVar)
+        else:
+            print("Removida: " + ceVar.name)
         
     return newCEVarList
 
 def getCEVarList(scenario, allCEVarList):
     ceVarList = []
     
-    for i in range(0, len(scenario.cm.ceList)):
-        varList = [v for v in allCEVarList if v.name.startswith("CE_" + str(i))]
+    ceIdList = MiscUtil.range_exclusive(0, len(scenario.cm.ceList))
+    
+    for ceId in ceIdList:
+        varList = [ceVar for ceVar in allCEVarList if ceVar.name.startswith("CE_" + str(ceId) + "_")]
         ceVarList.append(varList)
     
     return ceVarList
 
-def countCEConfigs(scenario, allCEVarList):
-    countConfigList = []
-    
-    for ceVar in allCEVarList:
-        ceVarNameSplit = ceVar.name.split('_')
-        
-        ceChannel = int(ceVarNameSplit[2])
-        cePotency = float(ceVarNameSplit[3])
-        
-        config_id = ceVarNameSplit[2] + "_" + ceVarNameSplit[3]
-        config_count = len([ce for ce in scenario.cm.ceList if ((ce.channel == ceChannel) and (ce.potency == cePotency))])
-        
-        countConfigList.append((config_id, config_count))
-        
-    return countConfigList
-    
 def getInterferenceList(scenario, allCEVarList):
     hataSRD = MathUtil.HataSRDModel()
     interferenceList = []
+#    testInterferenceList = []
     
     for ceVar in allCEVarList:
         ceVarNameSplit = ceVar.name.split('_')
         
         ceId = int(ceVarNameSplit[1])
         ceChannel = int(ceVarNameSplit[2])
-        cePotency = float(ceVarNameSplit[3])
+        cePotency = int(ceVarNameSplit[3])
         
-        for otherCEVar in allCEVarList:
+        ce = scenario.cm.ceList[ceId]
+        channel = next(c for c in scenario.channels if c.channelNumber == ceChannel)
+        
+        sameChannelList = [c for c in allCEVarList if (int(c.name.split('_')[1]) != ceId) 
+                                                    and int(c.name.split('_')[2]) == ceChannel]
+        
+        coChannelList = [c for c in allCEVarList if (int(c.name.split('_')[1]) != ceId) 
+                                                    and (int(c.name.split('_')[2]) == (ceChannel - 1) 
+                                                        or int(c.name.split('_')[2]) == (ceChannel + 1))]
+        
+        coCoChannelList = [c for c in allCEVarList if (int(c.name.split('_')[1]) != ceId) 
+                                                    and (int(c.name.split('_')[2]) == (ceChannel - 2) 
+                                                        or int(c.name.split('_')[2]) == (ceChannel + 2))]
+        
+        totalInterference = 0
+        
+        for otherCEVar in sameChannelList:
             otherCEVarNameSplit = otherCEVar.name.split('_')
             
             otherCEId = int(otherCEVarNameSplit[1])
-            otherCEChannel = int(otherCEVarNameSplit[2])
-            otherCEPotency = float(otherCEVarNameSplit[3])
+            otherCEPotency = int(otherCEVarNameSplit[3])
             
-            if((otherCEId > ceId) and (otherCEChannel == ceChannel)):
-                channel = next(c for c in scenario.channels if (c.channelNumber == ceChannel))
-                
-                ce = scenario.cm.ceList[ceId]
-                ceSignalDistance = hataSRD.getDistance(ce.antenna, channel.frequency, cePotency, -68)
-                
-                otherCE = scenario.cm.ceList[otherCEId]
-                otherCESignalDistance = hataSRD.getDistance(otherCE.antenna, channel.frequency, otherCEPotency, -68)
-                
-                distanceBetweenCEs = MathUtil.calculateDistanceBetweenGeoPoints(ce.geoPoint, otherCE.geoPoint)
-                
-                if(ceSignalDistance + otherCESignalDistance >= distanceBetweenCEs):
-                    interferenceList.append((ceVar, otherCEVar))
-                
+            otherCE = scenario.cm.ceList[otherCEId]
+            distanceBetweenCEs = MathUtil.calculateDistanceBetweenGeoPoints(ce.geoPoint, otherCE.geoPoint)
+            signalLevelOtherCE = hataSRD.getSignalLevel(otherCE.antenna, channel.frequency, otherCEPotency, distanceBetweenCEs)
+            
+            interference = math.pow(10.0, (signalLevelOtherCE / 10.0))
+            totalInterference += interference
+        
+        for otherCEVar in coChannelList:
+            otherCEVarNameSplit = otherCEVar.name.split('_')
+            
+            otherCEId = int(otherCEVarNameSplit[1])
+            otherCEPotency = int(otherCEVarNameSplit[3])
+            
+            otherCE = scenario.cm.ceList[otherCEId]
+            distanceBetweenCEs = MathUtil.calculateDistanceBetweenGeoPoints(ce.geoPoint, otherCE.geoPoint)
+            signalLevelOtherCE = hataSRD.getSignalLevel(otherCE.antenna, channel.frequency, otherCEPotency, distanceBetweenCEs)
+            
+            interference = 0.7 * math.pow(10.0, (signalLevelOtherCE / 10.0))
+            totalInterference += interference
+        
+        for otherCEVar in coCoChannelList:
+            otherCEVarNameSplit = otherCEVar.name.split('_')
+            
+            otherCEId = int(otherCEVarNameSplit[1])
+            otherCEPotency = int(otherCEVarNameSplit[3])
+            
+            otherCE = scenario.cm.ceList[otherCEId]
+            distanceBetweenCEs = MathUtil.calculateDistanceBetweenGeoPoints(ce.geoPoint, otherCE.geoPoint)
+            signalLevelOtherCE = hataSRD.getSignalLevel(otherCE.antenna, channel.frequency, otherCEPotency, distanceBetweenCEs)
+            
+            interference = 0.3 * math.pow(10.0, (signalLevelOtherCE / 10.0))
+            totalInterference += interference
+        
+        
+#        if (totalInterference != 0):
+#            totalInterference = 10 * math.log10(totalInterference)
+        
+        interferenceList.append(totalInterference)
+        
     return interferenceList
-  
+        
+    
 def process(scenario):
     allCEVarList = createAllCEVars(scenario)
     allCEVarList = removeVarsWithUnavailableChannel(scenario, allCEVarList)
     allCEVarList = removeVarWithLowPotency(scenario, allCEVarList)
     
     ceVarList = getCEVarList(scenario, allCEVarList)
-    countCEConfigs(scenario, allCEVarList)
     
-    interferenceCEVarList = getInterferenceList(scenario, allCEVarList)
+    interferenceList = getInterferenceList(scenario, allCEVarList)
     
-    return (allCEVarList, ceVarList, interferenceCEVarList)
+    return (allCEVarList, ceVarList, interferenceList)

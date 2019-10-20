@@ -27,7 +27,7 @@ scenario.read(args.cm, args.cdis)
 #------------------------------ BEGIN PREPROCESSING ------------------------------#
 
 print(">>: Pré-processando entrada")
-(allCEVarList, ceVarList, interferenceCEVarList) = PreProcessing.process(scenario)
+(allCEVarList, ceVarList, interferenceList) = PreProcessing.process(scenario)
 
 #------------------------------ END PREPROCESSING ------------------------------#
 
@@ -43,34 +43,63 @@ for ceVar in allCEVarList:
 model.update()
 
 print(">>: Adicionando restrições ao modelo")
-index = 0
+ceId = 0
 
 for ceVars in ceVarList:
     modelCEVarList = []
     
     for ceVar in ceVars:
-        modelCEVar = model.getVarByName(ceVar.name)
-        modelCEVarList.append(modelCEVar)
+        modelCEVarList.append(model.getVarByName(ceVar.name))
     
     model.addConstr(gb.quicksum(modelCEVarList), 
                     gb.GRB.EQUAL, 
                     1, 
-                    "Único_canal_e_potência_para_CE_" + str(index))
-    index += 1
+                    "Configuração_única_para_CE_" + str(ceId))
+    ceId += 1
+        
+print(">>: Definindo a função objetivo")
+modelCEVarList = []
+    
+for ceVar in allCEVarList:
+    modelCEVarList.append(model.getVarByName(ceVar.name))
 
-for interference in interferenceCEVarList:
-    model.addConstr(model.getVarByName(interference[0].name) + model.getVarByName(interference[1].name), 
-                    gb.GRB.LESS_EQUAL, 1, 
-                    "Interferência_entre_" + interference[0].name + "_e_" + interference[1].name)
+objList = []
 
-#print(">>: Otimizando...")
-#model.optimize()
-#
-#print(">>: Resultado:")
-#for varModel in model.getVars():
-#    print('%s %g' % (varModel.varName, varModel.x))
+for i in range(0, len(allCEVarList)):
+    objList.append(interferenceList[i] * modelCEVarList[i])
+    
+model.setObjective(gb.quicksum(objList), gb.GRB.MINIMIZE)
 
 model.write("model.lp")
 print(">>: Modelo salvo")
+
+print(">>: Otimizando...")
+model.optimize()
+
+status = model.status
+
+if status == gb.GRB.Status.UNBOUNDED:
+    print('The model cannot be solved because it is unbounded')
+elif status == gb.GRB.Status.OPTIMAL:
+    print('The optimal objective is %g' % model.objVal)
+    
+    print(">>: Resultado:")
+    
+    for varModel in model.getVars():
+        if(varModel.x == 1):
+            print('%s %g' % (varModel.varName, varModel.x))
+elif status != gb.GRB.Status.INF_OR_UNBD and status != gb.GRB.Status.INFEASIBLE:
+    print('Optimization was stopped with status %d' % status)
+else:
+    print('The model is infeasible; computing IIS')
+    model.computeIIS()
+    if model.IISMinimal:
+      print('IIS is minimal\n')
+    else:
+      print('IIS is not minimal\n')
+    print('\nThe following constraint(s) cannot be satisfied:')
+    for c in model.getConstrs():
+        if c.IISConstr:
+            print('%s' % c.constrName)
 
 #------------------------------ END SOLVER ------------------------------#

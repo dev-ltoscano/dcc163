@@ -66,8 +66,8 @@ class Scenario():
             
             for channelElement in cdisElement.findall('canaisTvdb'):
                 name = channelElement.find('nome').text
-                number = channelElement.find('numCanal').text
-                frequency = channelElement.find('frequencia').text
+                number = int(channelElement.find('numCanal').text)
+                frequency = float(channelElement.find('frequencia').text)
                 state = DataStructures.ChannelState[channelElement.find('estado').text]
                 
                 channel = DataStructures.Channel(name, number, frequency, state)                
@@ -77,3 +77,6 @@ class Scenario():
                 cdisList.append(cdis)
                 
         self.cdisList = cdisList
+        
+    def updateChannels(self, channelList):
+        self.channels = channelList
