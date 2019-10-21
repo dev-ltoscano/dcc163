@@ -31,12 +31,19 @@ def createAllCEVars(scenario):
 
 def createAllCountVars(scenario, allCEVarList):
     countVarList = []
+    countVarNameList = []
 
     for ceVar in allCEVarList:
         ceVarNameSplit = ceVar.name.split('_')
         
         countVarName = "COUNT_" + ceVarNameSplit[2] + "_" + ceVarNameSplit[3]
-        countVarDescription = "Contagem de nós por canal=" + ceVarNameSplit[2] + " e potência=" + ceVarNameSplit[3]
+        
+        if(countVarName not in countVarNameList):
+            countVarNameList.append(countVarName)
+            
+    for countVarName in countVarNameList:
+        countVarNameSplit = countVarName.split('_')
+        countVarDescription = "Contagem de nós por canal=" + countVarNameSplit[1] + " e potência=" + countVarNameSplit[2]
         
         countVarList.append(DataStructures.LPVar(countVarName, countVarDescription))
         

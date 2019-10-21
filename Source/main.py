@@ -109,9 +109,12 @@ if (model.status == gb.GRB.Status.OPTIMAL):
     print(">>: Resultado ótimo:")
     
     for modelCEVar in modelAllCEVarList:
-        if(("CE_" in modelCEVar.varName) and (modelCEVar.x == 1)):
+        if(modelCEVar.x == 1):
             resultCEVarList.append(modelCEVar.varName)
             print('%s' % modelCEVar.varName)
+            
+    for modelCountVar in modelCountVarList:
+        print('%s %s' % (modelCountVar.varName, modelCountVar.x))
 elif (model.status == gb.GRB.Status.INFEASIBLE):
     print(">>: O modelo é inviável!")
     
@@ -131,9 +134,12 @@ elif (model.status == gb.GRB.Status.INFEASIBLE):
         print(">>>: Resultado ótimo do modelo relaxado:")
     
         for modelCEVar in modelAllCEVarList:
-            if(("CE_" in modelCEVar.varName) and (modelCEVar.x == 1)):
+            if(modelCEVar.x == 1):
                 resultCEVarList.append(modelCEVar.varName)
                 print('%s' % modelCEVar.varName)
+        
+        for modelCountVar in modelCountVarList:
+            print('%s %s' % (modelCountVar.varName, modelCountVar.x))
     elif (model.status in (gb.GRB.Status.INF_OR_UNBD, gb.GRB.Status.UNBOUNDED, gb.GRB.Status.INFEASIBLE)):
         print(">>>: O modelo relaxado não pode ser resolvido porque é ilimitado ou inviável")
         exit(1)
