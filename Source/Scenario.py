@@ -62,7 +62,7 @@ class Scenario():
         cdisList = []
         
         for cdisElement in xmlRoot.findall('cdis'):
-            channelList = []
+            cdisChannelList = []
             
             for channelElement in cdisElement.findall('canaisTvdb'):
                 name = channelElement.find('nome').text
@@ -71,9 +71,9 @@ class Scenario():
                 state = DataStructures.ChannelState[channelElement.find('estado').text]
                 
                 channel = DataStructures.Channel(name, number, frequency, state)                
-                channelList.append(channel)
+                cdisChannelList.append(channel)
                 
-                cdis = DataStructures.CDIS(channelList)
+                cdis = DataStructures.CDIS(cdisChannelList)
                 cdisList.append(cdis)
                 
         self.cdisList = cdisList

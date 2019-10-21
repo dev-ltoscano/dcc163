@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
 import argparse
 
+import DataStructures
 import Scenario
 import PreProcessing
 import gurobipy as gb
+
+#import MathUtil
+#from sklearn.preprocessing import MinMaxScaler
+#import matplotlib.pyplot as plt
+#import MiscUtil
 
 #------------------------------ BEGIN ARGUMENTS ------------------------------#
 
@@ -27,79 +33,175 @@ scenario.read(args.cm, args.cdis)
 #------------------------------ BEGIN PREPROCESSING ------------------------------#
 
 print(">>: Pré-processando entrada")
-(allCEVarList, ceVarList, interferenceList) = PreProcessing.process(scenario)
+(allCEVarList, ceVarList, allCountVarList, interferenceList, testInterferenceList) = PreProcessing.process(scenario)
 
 #------------------------------ END PREPROCESSING ------------------------------#
 
 #------------------------------ BEGIN SOLVER ------------------------------#
 
-print(">>: Criando modelo...")
+print(">>: Criando modelo")
 model = gb.Model('cognitive-networks')
 
 print(">>: Adicionando variáveis ao modelo")
+modelAllCEVarList = []
+
 for ceVar in allCEVarList:
-    model.addVar(name=ceVar.name, vtype=gb.GRB.BINARY)
+    modelAllCEVarList.append(model.addVar(name=ceVar.name, vtype=gb.GRB.BINARY))
+
+modelCountVarList = []
+
+for countVar in allCountVarList:
+    modelCountVarList.append(model.addVar(name=countVar.name, vtype=gb.GRB.INTEGER))
 
 model.update()
+
+modelCEVarList = []
+
+for ceVars in ceVarList:
+    modelVarList = []
+    
+    for ceVar in ceVars:
+        modelVarList.append(model.getVarByName(ceVar.name))
+        
+    modelCEVarList.append(modelVarList)
 
 print(">>: Adicionando restrições ao modelo")
 ceId = 0
 
-for ceVars in ceVarList:
-    modelCEVarList = []
-    
-    for ceVar in ceVars:
-        modelCEVarList.append(model.getVarByName(ceVar.name))
-    
-    model.addConstr(gb.quicksum(modelCEVarList), 
+for modelCEVars in modelCEVarList:
+    model.addConstr(gb.quicksum(modelCEVars), 
                     gb.GRB.EQUAL, 
                     1, 
                     "Configuração_única_para_CE_" + str(ceId))
+    
     ceId += 1
+    
+for modelCountVar in modelCountVarList:
+    countVarNameSplit = modelCountVar.varName.split('_')
+    
+    channel = int(countVarNameSplit[1])
+    potency = int(countVarNameSplit[2])
+    
+    filtredModelCEVarList = PreProcessing.filterModelCEVarByChannelAndPotency(modelAllCEVarList, channel, potency)
+        
+    model.addConstr(gb.quicksum(filtredModelCEVarList), 
+                    gb.GRB.EQUAL, 
+                    modelCountVar, 
+                    "Variável_" + modelCountVar.varName)
+    
+    model.addConstr(modelCountVar, 
+                    gb.GRB.LESS_EQUAL, 
+                    1, 
+                    "Valor_da_variável_" + modelCountVar.varName)
         
 print(">>: Definindo a função objetivo")
-modelCEVarList = []
-    
-for ceVar in allCEVarList:
-    modelCEVarList.append(model.getVarByName(ceVar.name))
-
-objList = []
-
-for i in range(0, len(allCEVarList)):
-    objList.append(interferenceList[i] * modelCEVarList[i])
-    
-model.setObjective(gb.quicksum(objList), gb.GRB.MINIMIZE)
+model.setObjective(gb.quicksum(modelCountVarList), gb.GRB.MINIMIZE)
 
 model.write("model.lp")
 print(">>: Modelo salvo")
 
-print(">>: Otimizando...")
+print(">>: Otimizando modelo")
 model.optimize()
 
-status = model.status
+resultCEVarList = []
 
-if status == gb.GRB.Status.UNBOUNDED:
-    print('The model cannot be solved because it is unbounded')
-elif status == gb.GRB.Status.OPTIMAL:
-    print('The optimal objective is %g' % model.objVal)
+if (model.status == gb.GRB.Status.OPTIMAL):
+    print(">>: Resultado ótimo:")
     
-    print(">>: Resultado:")
+    for modelCEVar in modelAllCEVarList:
+        if(("CE_" in modelCEVar.varName) and (modelCEVar.x == 1)):
+            resultCEVarList.append(modelCEVar.varName)
+            print('%s' % modelCEVar.varName)
+elif (model.status == gb.GRB.Status.INFEASIBLE):
+    print(">>: O modelo é inviável!")
     
-    for varModel in model.getVars():
-        if(varModel.x == 1):
-            print('%s %g' % (varModel.varName, varModel.x))
-elif status != gb.GRB.Status.INF_OR_UNBD and status != gb.GRB.Status.INFEASIBLE:
-    print('Optimization was stopped with status %d' % status)
-else:
-    print('The model is infeasible; computing IIS')
+    print(">>: Computando IIS")
     model.computeIIS()
-    if model.IISMinimal:
-      print('IIS is minimal\n')
-    else:
-      print('IIS is not minimal\n')
-    print('\nThe following constraint(s) cannot be satisfied:')
+      
+    print(">>>: As restrições a seguir não foram satisfeitas:")
     for c in model.getConstrs():
         if c.IISConstr:
             print('%s' % c.constrName)
+    
+    print(">>>: Otimizando modelo relaxado")        
+    model.feasRelaxS(0, False, False, True)
+    model.optimize()
+    
+    if (model.status == gb.GRB.Status.OPTIMAL):
+        print(">>>: Resultado ótimo do modelo relaxado:")
+    
+        for modelCEVar in modelAllCEVarList:
+            if(("CE_" in modelCEVar.varName) and (modelCEVar.x == 1)):
+                resultCEVarList.append(modelCEVar.varName)
+                print('%s' % modelCEVar.varName)
+    elif (model.status in (gb.GRB.Status.INF_OR_UNBD, gb.GRB.Status.UNBOUNDED, gb.GRB.Status.INFEASIBLE)):
+        print(">>>: O modelo relaxado não pode ser resolvido porque é ilimitado ou inviável")
+        exit(1)
+    else:
+        print(">>>: A otimização parou com status: %d" % model.status)
+        exit(1)
+elif (model.status == gb.GRB.Status.UNBOUNDED):
+    print(">>>: O modelo não pode ser resolvido porque é ilimitado")
+    exit(1)
+else:
+    print(">>>: A otimização parou com status: %d" % model.status)
+    exit(1)
 
 #------------------------------ END SOLVER ------------------------------#
+    
+#------------------------------ BEGIN VISUALIZATION ------------------------------#
+
+resultCEList = []
+
+for resultCEVar in resultCEVarList:
+    ceVarNameSplit = resultCEVar.split('_')
+        
+    ceId = int(ceVarNameSplit[1])
+    resultCEChannelNumber = int(ceVarNameSplit[2])
+    resultCEPotency = int(ceVarNameSplit[3])
+    
+    ce = scenario.cm.ceList[ceId]
+    
+    resultCEList.append(DataStructures.CE(ceId, ce.antenna, resultCEChannelNumber, ce.geoPoint, resultCEPotency, ce.maxPotency, ce.clientList))
+
+#hataSRD = MathUtil.HataSRDModel() 
+#cePointsList = []
+#ceChannelList = []
+#cePotencyList = []
+#ceSignalDistanceList = []
+#
+#for resultCEVar in resultVarList:
+#    ceVarNameSplit = resultCEVar.split('_')
+#
+#    ceId = int(ceVarNameSplit[1])
+#    ceChannel = int(ceVarNameSplit[2])
+#    cePotency = int(ceVarNameSplit[3])
+#    
+#    ce = scenario.cm.ceList[ceId]
+#    channelFrequency = next(c.frequency for c in scenario.channels if (c.channelNumber == ceChannel))
+#
+#    cePointsList.append(MathUtil.latlon_to_xyz(ce.geoPoint.latitude, ce.geoPoint.longitude))
+#    ceChannelList.append(ceChannel)
+#    cePotencyList.append(cePotency)
+#    
+#    signalDistance = hataSRD.getDistance(ce.antenna, channelFrequency, cePotency, -50)
+#    ceSignalDistanceList.append([signalDistance])
+#
+#scaler = MinMaxScaler()
+#cePointsList = scaler.fit_transform(cePointsList)
+#ceSignalDistanceList = scaler.fit_transform(ceSignalDistanceList)
+#
+#cmap = ["aqua", "blue", "brown", "fuchsia", "gold", "green", "gray", "orange", "salmon", "tomato", "violet"]
+#
+#circleList = []
+#
+#for i in range(0, len(cePointsList)):
+#    circle = plt.Circle((cePointsList[i][0], cePointsList[i][1]), 0.5 * ceSignalDistanceList[i], color=cmap[ceChannelList[i]], alpha=0.5)
+#    circleList.append(circle)
+#
+#fig, ax = plt.subplots()
+#
+#for circle in circleList:
+#    ax.add_artist(circle)
+    
+#------------------------------ END VISUALIZATION ------------------------------#
