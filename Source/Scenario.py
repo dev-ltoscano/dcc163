@@ -33,11 +33,10 @@ class Scenario():
             channel = int(ceElement.find('device').find('canal').text)
             latitude = float(ceElement.find('latitude').text)
             longitude = float(ceElement.find('longitude').text)
-            potency = float(ceElement.find('potencia').text)
-            maxPotency = float(ceElement.find('potenciaMax').text)
+            potency = int(ceElement.find('potencia').text)
+            maxPotency = int(ceElement.find('potenciaMax').text)
             
             ce = DataStructures.CE(id, antenna, channel, DataStructures.GeoPoint(latitude, longitude), potency, maxPotency, ceClientList)
-            
             ceList.append(ce)
         
         id = xmlRoot.find('id').text  
@@ -73,8 +72,8 @@ class Scenario():
                 channel = DataStructures.Channel(name, number, frequency, state)                
                 cdisChannelList.append(channel)
                 
-                cdis = DataStructures.CDIS(cdisChannelList)
-                cdisList.append(cdis)
+            cdis = DataStructures.CDIS(cdisChannelList)
+            cdisList.append(cdis)
                 
         self.cdisList = cdisList
         
